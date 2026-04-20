@@ -614,7 +614,12 @@ ncp_fill_cache(struct file *file, struct dir_context *ctx,
 
 	qname.name = __name;
 
-	newdent = d_hash_and_lookup(dentry, &qname);
+	newdent = d_lookup(dentry, &qname);
+
+	/* d_lookup() increments dentry refcount if found.
+	 * This matches expected semantics of the old d_hash_and_lookup().
+	 */
+
 	if (IS_ERR(newdent))
 		goto end_advance;
 	if (!newdent) {
