@@ -84,7 +84,7 @@ const struct inode_operations ncp_dir_inode_operations =
  * Parent inode i_mutex must be held over d_lookup and into this call (to
  * keep renames and concurrent inserts, and readdir(2) away).
  */
-void new_dentry_update_name_case(struct dentry *, const struct qstr *)
+void new_dentry_update_name_case(struct dentry *dentry, const struct qstr *name)
 {
 	BUG_ON(!inode_is_locked(dentry->d_parent->d_inode));
 	BUG_ON(dentry->d_name.len != name->len); /* d_lookup gives this */
