@@ -28,6 +28,7 @@
 #include <linux/vmalloc.h>
 #include <linux/init.h>
 #include <linux/fs.h>
+#include <linux/statfs.h>
 #include <linux/mount.h>
 #include <linux/seq_file.h>
 #include <linux/sched/signal.h>
