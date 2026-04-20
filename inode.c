@@ -1023,7 +1023,7 @@ out:
 static struct dentry *ncp_mount(struct file_system_type *fs_type,
 	int flags, const char *dev_name, void *data)
 {
-	return mount_nodev(fs_type, flags, data, ncp_fill_super);
+	return ncp_mount_nodev(fs_type, flags, data, ncp_fill_super);
 }
 
 static struct file_system_type ncp_fs_type = {
