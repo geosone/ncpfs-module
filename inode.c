@@ -30,6 +30,7 @@
 #include <linux/fs.h>
 #include <linux/statfs.h>
 #include <linux/mount.h>
+#include <linux/fs_context.h>
 #include <linux/seq_file.h>
 #include <linux/sched/signal.h>
 #include <linux/namei.h>
@@ -49,6 +50,7 @@ static void ncp_evict_inode(struct inode *);
 static void ncp_put_super(struct super_block *);
 static int  ncp_statfs(struct dentry *, struct kstatfs *);
 static int  ncp_show_options(struct seq_file *, struct dentry *);
+static int  ncp_fill_super(struct super_block *sb, struct fs_context *fc);
 
 static struct kmem_cache * ncp_inode_cachep;
 
@@ -103,10 +105,12 @@ static void destroy_inodecache(void)
 	kmem_cache_destroy(ncp_inode_cachep);
 }
 
-static int ncp_remount(struct super_block *sb, int *flags, char* data)
+static int ncp_reconfigure(struct fs_context *fc)
 {
+	struct super_block *sb = fc->root->d_sb;
 	sync_filesystem(sb);
-	*flags |= SB_NODIRATIME;
+	fc->sb_flags |= SB_NODIRATIME;
+	fc->sb_flags_mask |= SB_NODIRATIME;
 	return 0;
 }
 
@@ -118,7 +122,6 @@ static const struct super_operations ncp_sops =
 	.evict_inode	= ncp_evict_inode,
 	.put_super	= ncp_put_super,
 	.statfs		= ncp_statfs,
-	.remount_fs	= ncp_remount,
 	.show_options	= ncp_show_options,
 };
 
@@ -465,8 +468,10 @@ err:
 	return ret;
 }
 
-static int ncp_fill_super(struct super_block *sb, void *raw_data, int silent)
+static int ncp_fill_super(struct super_block *sb, struct fs_context *fc)
 {
+	void *raw_data = fc->fs_private;
+	int silent = !!(fc->sb_flags & SB_SILENT);
 	struct ncp_mount_data_kernel data;
 	struct ncp_server *server;
 	struct inode *root_inode;
@@ -1021,16 +1026,43 @@ out:
 	return result;
 }
 
-static struct dentry *ncp_mount(struct file_system_type *fs_type,
-	int flags, const char *dev_name, void *data)
+static int ncp_parse_monolithic(struct fs_context *fc, void *data)
 {
-	return ncp_mount_nodev(fs_type, flags, data, ncp_fill_super);
+	fc->fs_private = data;
+	return 0;
+}
+
+static void ncp_free_fc(struct fs_context *fc)
+{
+	/*
+	 * For legacy mount(2), the VFS passes the monolithic data page here.
+	 * We only keep the pointer long enough for ->get_tree().
+	 */
+	kfree(fc->fs_private);
+}
+
+static int ncp_get_tree(struct fs_context *fc)
+{
+	return get_tree_nodev(fc, ncp_fill_super);
+}
+
+static const struct fs_context_operations ncp_context_ops = {
+	.free		= ncp_free_fc,
+	.parse_monolithic = ncp_parse_monolithic,
+	.get_tree	= ncp_get_tree,
+	.reconfigure	= ncp_reconfigure,
+};
+
+static int ncp_init_fs_context(struct fs_context *fc)
+{
+	fc->ops = &ncp_context_ops;
+	return 0;
 }
 
 static struct file_system_type ncp_fs_type = {
 	.owner		= THIS_MODULE,
 	.name		= "ncpfs",
-	.mount		= ncp_mount,
+	.init_fs_context = ncp_init_fs_context,
 	.kill_sb	= kill_anon_super,
 	.fs_flags	= FS_BINARY_MOUNTDATA,
 };
