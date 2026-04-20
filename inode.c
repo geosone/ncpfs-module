@@ -1063,3 +1063,5 @@ static void __exit exit_ncp_fs(void)
 module_init(init_ncp_fs)
 module_exit(exit_ncp_fs)
 MODULE_LICENSE("GPL");
+MODULE_AUTHOR("Johannes C. Schulz (EnzephaloN) <info@enzephalon.de>");
+MODULE_DESCRIPTION("NCP file system support to mount NetWare volumes");
