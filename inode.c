@@ -51,6 +51,7 @@ static void ncp_put_super(struct super_block *);
 static int  ncp_statfs(struct dentry *, struct kstatfs *);
 static int  ncp_show_options(struct seq_file *, struct dentry *);
 static int  ncp_fill_super(struct super_block *sb, struct fs_context *fc);
+static void delayed_free(struct rcu_head *p);
 
 static struct kmem_cache * ncp_inode_cachep;
 
@@ -320,6 +321,7 @@ static void ncp_stop_tasks(struct ncp_server *server) {
 	sk->sk_error_report = server->error_report;
 	sk->sk_data_ready   = server->data_ready;
 	sk->sk_write_space  = server->write_space;
+	sk->sk_user_data    = NULL;
 	release_sock(sk);
 	timer_delete_sync(&server->timeout_tm);
 
@@ -753,7 +755,7 @@ out_fput:
 out:
 	put_pid(data.wdog_pid);
 	sb->s_fs_info = NULL;
-	kfree(server);
+	call_rcu(&server->rcu, delayed_free);
 	return error;
 }
 
@@ -1035,10 +1037,9 @@ static int ncp_parse_monolithic(struct fs_context *fc, void *data)
 static void ncp_free_fc(struct fs_context *fc)
 {
 	/*
-	 * For legacy mount(2), the VFS passes the monolithic data page here.
-	 * We only keep the pointer long enough for ->get_tree().
+	 * For legacy mount(2), the VFS owns the monolithic mount-data
+	 * buffer. Do not free fc->fs_private here.
 	 */
-	kfree(fc->fs_private);
 }
 
 static int ncp_get_tree(struct fs_context *fc)
