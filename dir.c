@@ -614,16 +614,19 @@ ncp_fill_cache(struct file *file, struct dir_context *ctx,
 
 	qname.name = __name;
 
-	newdent = d_lookup(dentry, &qname);
-
-	/* d_lookup() increments dentry refcount if found.
-	 * This matches expected semantics of the old d_hash_and_lookup().
+	/*
+	 * try_lookup_noperm() is the old d_hash_and_lookup(): it fills in
+	 * qname.hash (through ->d_hash) before the dcache lookup.  A plain
+	 * d_lookup() here would use an uninitialised hash, miss an existing
+	 * dentry and let the d_rehash() below hash it a second time, which
+	 * turns its hash chain into a loop (endless __d_lookup_rcu, RCU
+	 * stalls).
 	 */
-
+	newdent = try_lookup_noperm(&qname, dentry);
 	if (IS_ERR(newdent))
 		goto end_advance;
 	if (!newdent) {
-	    newdent = try_lookup_noperm(&qname,dentry);
+		newdent = d_alloc(dentry, &qname);
 		if (!newdent)
 			goto end_advance;
 	} else {
